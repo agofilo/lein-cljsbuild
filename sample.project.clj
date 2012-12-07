@@ -87,8 +87,10 @@
           ; Defaults to "main.js".
           :output-to "resources/public/js/main.js"
           ; The name of a cljs src file or dir not to be compiled in js.
-          ; The value can be even a vector of files/dirs to be ecluded from compilation.
-          :exclude "file_name.cljs"
+          ; The value can be even a vector of files/dirs to be excluded from compilation.
+          :exclude "dir1/file_name.cljs"
+          ; :exclude "dir1/dir2"
+          ; :exclude ["dir1/file_name.cljs" "dir1/dir2"]
           ; This flag will turn on compiler warnings for references to
           ; undeclared vars, wrong function call arities, etc. Defaults to true.
           :warnings true

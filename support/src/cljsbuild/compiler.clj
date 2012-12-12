@@ -40,17 +40,17 @@
   ; files or directories are found in the exclude option.
   [cljs-path exclude-src]
   (when (and (not-empty exclude-src) (not-empty cljs-path))
-    (let [cljs-canonical-path (str (fs/normalized-path cljs-path) java.io.File/separator)
+    (let [cljs-canonical-file (fs/normalized-path cljs-path)
           normalized-exclude-src (flatten (vector exclude-src))
           filtered-exclude-src (filter #(not-empty %) normalized-exclude-src)]
       (flatten (map (fn [s]
-                      (when (not (fs/exists? (str cljs-canonical-path s)))
+                      (when (not (fs/exists? (util/join-paths cljs-canonical-file s)))
                         (throw (Exception. (str "Trying to exclude not existing file or directory: \"" s "\""))))
-                      (str cljs-canonical-path s))
+                      (util/join-paths cljs-canonical-file s))
                     filtered-exclude-src)))))
 
 (defn- to-be-excluded?
-  ; Assert whether the specified by file-name file is contained in
+  ; Assert wether the specified by file-name file is contained in
   ; scr-coll, which is the collection of dirs and files that must be excluded.
   ; "scr-coll" must be either a sequence of strings or nil.
   [src-coll file-path]

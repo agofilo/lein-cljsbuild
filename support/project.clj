@@ -4,6 +4,8 @@
   :license {:name "Eclipse Public License - v 1.0"
             :url "http://www.eclipse.org/legal/epl-v10.html"
             :distribution :repo}
+;;; For leiningen2 uncomment this part, comment the :dev-dependencies part and add lein-midje to your .lein/profiles
+;;; :profiles {:dev {:dependencies [[midje "1.4.0"]]}}
   :dependencies [[org.clojure/clojure "1.4.0"]
                  [org.clojure/clojurescript "0.0-1513"
                    :exclusions [org.apache.ant/ant]]

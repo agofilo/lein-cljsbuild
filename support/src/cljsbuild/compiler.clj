@@ -46,7 +46,7 @@
       (flatten (map (fn [s]
                       (when (not (fs/exists? (util/join-paths cljs-canonical-file s)))
                         (throw (Exception. (str "Trying to exclude not existing file or directory: \"" s "\""))))
-                      (util/join-paths cljs-canonical-file s))
+                    (str (fs/normalized-path (util/join-paths cljs-canonical-file s))))
                     filtered-exclude-src)))))
 
 (defn- to-be-excluded?

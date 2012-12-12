@@ -50,7 +50,7 @@
                     filtered-exclude-src)))))
 
 (defn- to-be-excluded?
-  ; Assert wether the specified by file-name file is contained in
+  ; Assert whether the specified by file-name file is contained in
   ; scr-coll, which is the collection of dirs and files that must be excluded.
   ; "scr-coll" must be either a sequence of strings or nil.
   [src-coll file-path]

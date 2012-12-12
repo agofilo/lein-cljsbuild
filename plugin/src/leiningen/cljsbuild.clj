@@ -89,6 +89,7 @@
                             ~crossover-path
                             crossover-macro-paths#
                             (:compiler build#)
+                            (:exclude build#)
                             (:parsed-notify-command build#)
                             (:incremental build#)
                             (:assert build#)

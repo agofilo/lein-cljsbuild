@@ -1,12 +1,14 @@
 (ns cljsbuild.compiler
   (:use
-    [clj-stacktrace.repl :only [pst+]]
-    [cljs.closure :only [build]])
+   [clj-stacktrace.repl :only [pst+]]
+   [clojure.java.io :only [resource]])
   (:require
-    [cljsbuild.util :as util]
-    [cljs.analyzer :as analyzer]
-    [clojure.string :as string]
-    [fs.core :as fs]))
+   [cljs.closure :as closure]
+   [cljs.compiler :as compiler]
+   [cljsbuild.util :as util]
+   [cljs.analyzer :as analyzer]
+   [clojure.string :as string]
+   [fs.core :as fs]))
 
 (def reset-color "\u001b[0m")
 (def foreground-red "\u001b[31m")
@@ -33,7 +35,69 @@
         (pst+ e))))
   (println (colorizer message)))
 
-(defn- compile-cljs [cljs-path compiler-options notify-command incremental? assert?]
+(defn- normalize-exclude-options
+  ; Normalize the exclude options to a sequence of file pathnames. It throws an exception if not existent
+  ; files or directories are found in the exclude option.
+  [cljs-path exclude-src]
+  (when (and (not-empty exclude-src) (not-empty cljs-path))
+    (let [cljs-canonical-path (str (fs/normalized-path cljs-path) java.io.File/separator)
+          normalized-exclude-src (flatten (vector exclude-src))
+          filtered-exclude-src (filter #(not-empty %) normalized-exclude-src)]
+      (flatten (map (fn [s]
+                      (when (not (fs/exists? (str cljs-canonical-path s)))
+                        (throw (Exception. (str "Trying to exclude not existing file or directory: \"" s "\""))))
+                      (str cljs-canonical-path s))
+                    filtered-exclude-src)))))
+
+(defn- to-be-excluded?
+  ; Assert wether the specified by file-name file is contained in
+  ; scr-coll, which is the collection of dirs and files that must be excluded.
+  ; "scr-coll" must be either a sequence of strings or nil.
+  [src-coll file-path]
+  (when (and src-coll file-path)
+    (let [regex (map #(re-pattern (str "^"  % "|^"  % "/.*")) src-coll)]
+      (reduce #(or %1 %2) (map #(string? (re-matches % file-path)) regex)))))
+
+(defn- build
+  ; Given a source which can be compiled, produce runnable JavaScript. 
+  ; Straightforward adaptation of cljs.closure/build
+  [cljs-path options exclude-options]
+  (analyzer/reset-namespaces!)
+  (let [compilables (compiler/cljs-files-in (fs/file cljs-path))
+        normalized-exclude-options (normalize-exclude-options cljs-path exclude-options)
+        to-be-compiled (filter #(not (to-be-excluded? normalized-exclude-options (fs/absolute-path %))) compilables)
+        options (if (= :nodejs (:target options))
+               (merge {:optimizations :simple} options)
+               options)
+        ups-deps (closure/get-upstream-deps)
+        all-options (assoc options
+                      :ups-libs (:libs ups-deps)
+                      :ups-foreign-libs (:foreign-libs ups-deps)
+                      :ups-externs (:externs ups-deps))]
+    (binding [analyzer/*cljs-static-fns*
+              (or (and (= (options :optimizations) :advanced))
+                  (:static-fns options)
+                  analyzer/*cljs-static-fns*)
+              analyzer/*cljs-warn-on-undeclared*
+              (true? (options :warnings))]
+      (let [compiled (map #(closure/-compile % all-options) to-be-compiled)
+            js-sources (concat
+                        (apply closure/add-dependencies all-options
+                               (concat (if (coll? compiled) compiled [compiled])
+                                       (when (= :nodejs (:target all-options))
+                                         [(closure/-compile (resource "cljs/nodejs.cljs") all-options)])))
+                        (when (= :nodejs (:target all-options))
+                          [(closure/-compile (resource "cljs/nodejscli.cljs") all-options)]))
+            optim (:optimizations all-options)]
+        (if (and optim (not= optim :none))
+          (->> js-sources
+               (apply closure/optimize all-options)
+               (closure/add-header all-options)
+               (closure/add-wrapper all-options)
+               (closure/output-one-file all-options))
+          (apply closure/output-unoptimized all-options js-sources))))))
+
+(defn- compile-cljs [cljs-path compiler-options exclude notify-command incremental? assert?]
   (let [output-file (:output-to compiler-options)
         output-file-dir (fs/parent output-file)]
     (println (str "Compiling \"" output-file "\" from \"" cljs-path "\"..."))
@@ -45,7 +109,7 @@
     (let [started-at (System/nanoTime)]
       (try
         (binding [*assert* assert?]
-          (build cljs-path compiler-options))
+          (build cljs-path compiler-options exclude))
         (notify-cljs
           notify-command
           (str "Successfully compiled \"" output-file "\" in " (elapsed started-at) ".") green)
@@ -96,7 +160,7 @@
         (pst+ e)))))
 
 (defn run-compiler [cljs-path crossover-path crossover-macro-paths
-                    compiler-options notify-command incremental?
+                    compiler-options exclude notify-command incremental?
                     assert? last-dependency-mtimes]
   (let [output-file (:output-to compiler-options)
         output-mtime (if (fs/exists? output-file) (fs/mod-time output-file) 0)
@@ -117,5 +181,5 @@
         (when (seq clj-modified)
           (reload-clojure (map (partial relativize cljs-path) clj-files) compiler-options notify-command))
         (when (or (seq macro-modified) (seq clj-modified) (seq cljs-modified))
-          (compile-cljs cljs-path compiler-options notify-command incremental? assert?))))
+          (compile-cljs cljs-path compiler-options exclude notify-command incremental? assert?))))
     dependency-mtimes))

@@ -7,7 +7,7 @@
     (java.io OutputStreamWriter)))
 
 (defn join-paths [& paths]
-  (apply str (interpose "/" paths)))
+  (apply str (interpose java.io.File/separator paths)))
 
 (defn filter-by-ext [files types]
   (let [ext #(last (string/split % #"\."))]

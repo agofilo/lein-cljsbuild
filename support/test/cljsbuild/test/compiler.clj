@@ -26,6 +26,7 @@
 (def assert? false)
 (def incremental? true)
 (def mtime 1234)
+(def cljs-path-exclude "../example-projects/exclude/src/cljs")
 (testable-privates cljsbuild.compiler normalize-exclude-options)
 (testable-privates cljsbuild.compiler to-be-excluded?)
 
@@ -44,12 +45,12 @@
   )
 
 (facts "Testing normalize-exclude-options private function."
-  (normalize-exclude-options cljs-path nil) => nil
-  (normalize-exclude-options cljs-path "") => nil
-  (normalize-exclude-options cljs-path []) => nil
-  (normalize-exclude-options cljs-path [""]) => ()
-  (normalize-exclude-options cljs-path ["" " "]) => (throws Exception)
-  (normalize-exclude-options cljs-path "file1") => (throws Exception)
+  (normalize-exclude-options cljs-path-exclude nil) => nil
+  (normalize-exclude-options cljs-path-exclude "") => nil
+  (normalize-exclude-options cljs-path-exclude []) => nil
+  (normalize-exclude-options cljs-path-exclude [""]) => ()
+  (normalize-exclude-options cljs-path-exclude ["" " "]) => (throws Exception)
+  (normalize-exclude-options cljs-path-exclude "file1") => (throws Exception)
   )
 
 (fact "run-compiler calls cljs/build correctly"

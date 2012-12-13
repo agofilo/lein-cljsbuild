@@ -35,36 +35,36 @@
         (pst+ e))))
   (println (colorizer message)))
 
-(defn- normalize-options
-  ; Normalize options to a sequence of file pathnames. It throws an exception if not existent
-  ; files or directories are found in the exclude option.
+(defn- normalize-exclude-options
+  ;; Normalize options to a sequence of file pathnames. It throws an exception if not existent
+  ;; files or directories are found in the exclude option.
   [source files]
-  (when (and (not-empty files) (not-empty source))
+  (when (and (not-empty source) (not-empty files))
     (let [source-absolute-path (fs/absolute-path source)
-          files-as-vec (flatten (vector files))
-          filtered-files (filter #(not-empty %) files-as-vec)]
-      (flatten (map (fn [s]
-                      (when (not (fs/exists? (util/join-paths source-absolute-path s)))
-                        (throw (Exception. (str "Trying to exclude not existing file or directory: \"" s "\""))))
-                    (str (fs/normalized-path (util/join-paths source-absolute-path s))))
-                    files-as-vec)))))
+          files-as-seq (flatten (vector files))
+          filtered-files (remove #{""} (set files-as-seq))]
+      (map (fn [s]
+             (when (not (fs/exists? (util/join-paths source-absolute-path s)))
+               (throw (Exception. (str "Trying to exclude not existing file or directory: \"" s "\""))))
+             (str (fs/normalized-path (util/join-paths source-absolute-path s))))
+           filtered-files))))
 
 (defn- to-be-excluded?
-  ; Assert wether the specified by file-name file is contained in
-  ; scr-coll, which is the collection of dirs and files that must be excluded.
-  ; "scr-coll" must be either a sequence of strings or nil.
+  ;; Assert wether the specified by file-name file is contained in
+  ;; exclude-sources, which is the collection of dirs and files that must be excluded.
+  ;; exclude-sources must be either a sequence of strings or nil.
   [exclude-sources file]
   (when (and exclude-sources file)
     (let [regex (map #(re-pattern (str "^"  % "|^"  % "/.*")) exclude-sources)]
       (reduce #(or %1 %2) (map #(string? (re-matches % file)) regex)))))
 
 (defn- build
-  ; Given a source which can be compiled, produce runnable JavaScript. 
-  ; Straightforward adaptation of cljs.closure/build
+  ;; Given a source which can be compiled, produce runnable JavaScript. 
+  ;; Straightforward adaptation of cljs.closure/build
   [source compiler-options exclude-options]
   (analyzer/reset-namespaces!)
   (let [compilables (compiler/cljs-files-in (fs/file source))
-        normalized-exclude-options (normalize-options source exclude-options)
+        normalized-exclude-options (normalize-exclude-options source exclude-options)
         to-be-compiled (filter #(not (to-be-excluded? normalized-exclude-options (fs/absolute-path %))) compilables)
         compiler-options (if (= :nodejs (:target compiler-options))
                (merge {:optimizations :simple} compiler-options)
@@ -145,10 +145,10 @@
       path)))
 
 (defn reload-clojure [paths compiler-options notify-command]
-  ; Incremental builds will use cached JS output unless one of the cljs input files
-  ; has been modified.  Since reloading a clj file *might* affect the build, but does
-  ; not affect any cljs file mtimes, we have to clear the cache here to force everything
-  ; to be rebuilt.
+  ;; Incremental builds will use cached JS output unless one of the cljs input files
+  ;; has been modified.  Since reloading a clj file *might* affect the build, but does
+  ;; not affect any cljs file mtimes, we have to clear the cache here to force everything
+  ;; to be rebuilt.
   (fs/delete-dir (:output-dir compiler-options))
   (doseq [path paths]
     (try
@@ -160,7 +160,7 @@
         (pst+ e)))))
 
 (defn run-compiler [cljs-path crossover-path crossover-macro-paths
-                    compiler-options exclude notify-command incremental?
+                    compiler-options exclude-options notify-command incremental?
                     assert? last-dependency-mtimes]
   (let [output-file (:output-to compiler-options)
         output-mtime (if (fs/exists? output-file) (fs/mod-time output-file) 0)
@@ -181,5 +181,5 @@
         (when (seq clj-modified)
           (reload-clojure (map (partial relativize cljs-path) clj-files) compiler-options notify-command))
         (when (or (seq macro-modified) (seq clj-modified) (seq cljs-modified))
-          (compile-cljs cljs-path compiler-options exclude notify-command incremental? assert?))))
+          (compile-cljs cljs-path compiler-options exclude-options notify-command incremental? assert?))))
     dependency-mtimes))
